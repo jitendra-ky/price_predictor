@@ -25,6 +25,9 @@ $(document).ready(function() {
     const $rmseValue = $('#rmse-value');
     const $r2Value = $('#r2-value');
     
+    // Table elements
+    const $predictionsTableBody = $('#predictions-table-body');
+    
     // Authentication check
     function checkAuthentication() {
         const accessToken = localStorage.getItem('accessToken');
@@ -168,6 +171,111 @@ $(document).ready(function() {
         $predictionPlaceholder.removeClass('hidden');
     }
     
+    // Load prediction history
+    function loadPredictionHistory() {
+        const accessToken = localStorage.getItem('accessToken');
+        if (!accessToken) {
+            return;
+        }
+        
+        $.ajax({
+            url: '/api/v1/predictions/',
+            type: 'GET',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            },
+            success: function(data, textStatus, xhr) {
+                console.log('Prediction history loaded:', data);
+                populatePredictionTable(data);
+            },
+            error: function(xhr, textStatus, errorThrown) {
+                console.error('Failed to load prediction history:', xhr.responseJSON);
+                
+                if (xhr.status === 401) {
+                    // Token expired or invalid
+                    localStorage.removeItem('accessToken');
+                    localStorage.removeItem('refreshToken');
+                    window.location.href = '/login/';
+                } else {
+                    showError('Failed to load prediction history. Please refresh the page.');
+                }
+            }
+        });
+    }
+    
+    // Populate prediction table
+    function populatePredictionTable(predictions) {
+        // Clear existing table content
+        $predictionsTableBody.empty();
+        
+        if (!predictions || predictions.length === 0) {
+            // Show empty state
+            const emptyRow = `
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                        <div class="flex flex-col items-center">
+                            <svg class="h-12 w-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                            </svg>
+                            <p>No predictions yet. Make your first prediction above!</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            $predictionsTableBody.append(emptyRow);
+            return;
+        }
+        
+        // Populate table with prediction data
+        predictions.forEach(function(prediction, index) {
+            const metrics = prediction.metrics || {};
+            
+            // Format date
+            const createdDate = new Date(prediction.created);
+            const formattedDate = createdDate.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+            
+            // Format values with fallbacks
+            const nextDayPrice = metrics.next_day_price ? `$${parseFloat(metrics.next_day_price).toFixed(2)}` : '--';
+            const mse = metrics.mse ? parseFloat(metrics.mse).toFixed(4) : '--';
+            const rmse = metrics.rmse ? parseFloat(metrics.rmse).toFixed(4) : '--';
+            const r2 = metrics.r2 ? parseFloat(metrics.r2).toFixed(4) : '--';
+            
+            // Alternate row colors for better readability
+            const rowClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+            
+            const row = `
+                <tr class="${rowClass} hover:bg-gray-100 transition-colors duration-150">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${prediction.ticker || '--'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${formattedDate}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                        ${nextDayPrice}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${mse}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${rmse}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${r2}
+                    </td>
+                </tr>
+            `;
+            
+            $predictionsTableBody.append(row);
+        });
+        
+        console.log(`Populated table with ${predictions.length} predictions`);
+    }
+    
     // Logout functionality
     $logoutBtn.on('click', function() {
         localStorage.removeItem('accessToken');
@@ -211,6 +319,9 @@ $(document).ready(function() {
                 console.log('Prediction successful:', data);
                 updateResults(data);
                 showSuccess(`Prediction completed successfully for ${ticker}!`);
+                
+                // Refresh prediction history table
+                loadPredictionHistory();
             },
             error: function(xhr, textStatus, errorThrown) {
                 console.error('Prediction error:', xhr.responseJSON);
@@ -251,6 +362,9 @@ $(document).ready(function() {
     
     // Check authentication on page load
     checkAuthentication();
+    
+    // Load prediction history on page load
+    loadPredictionHistory();
     
     // Clear messages when user starts typing
     $tickerInput.on('input', function() {
