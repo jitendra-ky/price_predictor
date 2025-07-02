@@ -1,5 +1,7 @@
 import yfinance as yf
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend for plotting
 import matplotlib.pyplot as plt
 import os
 from django.conf import settings
