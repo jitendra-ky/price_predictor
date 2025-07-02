@@ -2,6 +2,9 @@
 .venvwsl/
 __pycache__/
 
+# so that i can create files which are not tracked by git without changint the .gitignore
+zjitentemp*
+
 *.sqlite3
 *.pyc
 .env
