@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - {{ block.super }}{% endblock %}
+
+{% block content %}
+<!-- Dashboard Navigation -->
+<div class="bg-white shadow-sm border-b">
+    <div class="container mx-auto px-4 py-3">
+        <div class="flex justify-between items-center">
+            <h2 class="text-xl font-semibold text-gray-800">Stock Prediction Dashboard</h2>
+            <div class="flex items-center space-x-4">
+                <span class="text-sm text-gray-600">Welcome, <span id="username">User</span></span>
+                <button 
+                    id="logout-btn" 
+                    class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out"
+                >
+                    Logout
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mx-auto px-4 py-8 space-y-8">
+    <!-- Stock Prediction Form -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Get Stock Prediction</h3>
+        <form id="prediction-form" class="flex flex-col sm:flex-row gap-4">
+            <div class="flex-1">
+                <label for="ticker-input" class="block text-sm font-medium text-gray-700 mb-2">Stock Ticker Symbol</label>
+                <input 
+                    type="text" 
+                    id="ticker-input" 
+                    name="ticker"
+                    placeholder="e.g., AAPL, TSLA, MSFT" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                >
+            </div>
+            <div class="flex items-end">
+                <button 
+                    type="submit" 
+                    id="predict-btn"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <span id="predict-btn-text">Predict Price</span>
+                    <span id="predict-btn-loading" class="hidden">
+                        <svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Predicting...
+                    </span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Prediction Results -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Prediction Results</h3>
+        
+        <!-- Predicted Price -->
+        <div class="mb-6">
+            <div class="bg-gray-50 rounded-lg p-4 text-center">
+                <h4 class="text-sm font-medium text-gray-500 mb-2">Predicted Next-Day Price</h4>
+                <div id="predicted-price" class="text-3xl font-bold text-blue-600">
+                    <span class="text-gray-400">--</span>
+                </div>
+                <div id="ticker-symbol" class="text-sm text-gray-500 mt-1">Select a ticker to get prediction</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h4 class="text-sm font-medium text-gray-700 mb-3">Price History</h4>
+                <div class="aspect-video bg-gray-200 rounded-md flex items-center justify-center">
+                    <img 
+                        id="history-chart" 
+                        src="" 
+                        alt="Price history chart will appear here" 
+                        class="hidden w-full h-full object-contain rounded-md"
+                    >
+                    <div id="history-placeholder" class="text-gray-400 text-center">
+                        <svg class="mx-auto h-12 w-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        <p>Price history chart will appear here</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h4 class="text-sm font-medium text-gray-700 mb-3">Prediction vs Actual</h4>
+                <div class="aspect-video bg-gray-200 rounded-md flex items-center justify-center">
+                    <img 
+                        id="prediction-chart" 
+                        src="" 
+                        alt="Prediction vs actual chart will appear here" 
+                        class="hidden w-full h-full object-contain rounded-md"
+                    >
+                    <div id="prediction-placeholder" class="text-gray-400 text-center">
+                        <svg class="mx-auto h-12 w-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+                        </svg>
+                        <p>Prediction vs actual chart will appear here</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Model Metrics -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="bg-gray-50 rounded-lg p-4 text-center">
+                <h5 class="text-xs font-medium text-gray-500 uppercase tracking-wide">MSE</h5>
+                <div id="mse-value" class="text-lg font-semibold text-gray-600 mt-1">--</div>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-4 text-center">
+                <h5 class="text-xs font-medium text-gray-500 uppercase tracking-wide">RMSE</h5>
+                <div id="rmse-value" class="text-lg font-semibold text-gray-600 mt-1">--</div>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-4 text-center">
+                <h5 class="text-xs font-medium text-gray-500 uppercase tracking-wide">R²</h5>
+                <div id="r2-value" class="text-lg font-semibold text-gray-600 mt-1">--</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prediction History Table -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-800">Recent Predictions</h3>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Ticker
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Date
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Next Day Price
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            MSE
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            RMSE
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            R²
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="predictions-table-body" class="bg-white divide-y divide-gray-200">
+                    <!-- Table rows will be populated here -->
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                            <div class="flex flex-col items-center">
+                                <svg class="h-12 w-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                                </svg>
+                                <p>No predictions yet. Make your first prediction above!</p>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
