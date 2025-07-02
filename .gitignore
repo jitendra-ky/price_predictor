@@ -1,4 +1,5 @@
 .venv/
+.venvwsl/
 __pycache__/
 
 *.sqlite3
