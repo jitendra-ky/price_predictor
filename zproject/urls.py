@@ -23,6 +23,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('user.urls')),
+    path('api/', include('core.urls')),
     
     path('healthz/', HealthCheckView.as_view(), name='healthz'),
 ]
