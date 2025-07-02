@@ -11,6 +11,7 @@ import json
 
 from .views import HealthCheckView
 from .models import Prediction
+from .tasks import run_stock_prediction
 
 User = get_user_model()
 
@@ -71,9 +72,26 @@ class PredictViewTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
     
-    @patch('core.views.StockPredictor')
-    def test_predict_success(self, mock_predictor_class):
-        """Test successful prediction creates prediction and returns data"""
+    @patch('core.tasks.run_stock_prediction.delay')
+    def test_predict_success(self, mock_task_delay):
+        """Test successful prediction queues Celery task and returns 202"""
+        # Mock the task delay method
+        mock_task_delay.return_value = MagicMock(id='test-task-id')
+        
+        url = reverse('predict')
+        response = self.client.post(url, {'ticker': 'AAPL'})
+        
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertIn('message', response.data)
+        self.assertIn('task_id', response.data)
+        self.assertEqual(response.data['task_id'], 'test-task-id')
+        
+        # Verify task was called with correct parameters
+        mock_task_delay.assert_called_once_with(self.user.id, 'AAPL')
+    
+    @patch('core.tasks.StockPredictor')
+    def test_predict_task_execution(self, mock_predictor_class):
+        """Test the actual Celery task execution"""
         # Mock the predictor
         mock_predictor = MagicMock()
         mock_predictor.run.return_value = {
@@ -86,11 +104,14 @@ class PredictViewTest(APITestCase):
         }
         mock_predictor_class.return_value = mock_predictor
         
-        url = reverse('predict')
-        response = self.client.post(url, {'ticker': 'AAPL'})
+        # Test the task function directly
+        result = run_stock_prediction(self.user.id, 'AAPL')
         
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['ticker'], 'AAPL')
+        # The task should complete successfully
+        self.assertTrue(result['success'])
+        self.assertEqual(result['ticker'], 'AAPL')
+        self.assertIn('prediction_id', result)
+        self.assertIn('next_day_price', result)
         
         # Verify prediction was created in database
         self.assertEqual(Prediction.objects.count(), 1)
@@ -98,16 +119,24 @@ class PredictViewTest(APITestCase):
         self.assertEqual(prediction.user, self.user)
         self.assertEqual(prediction.ticker, 'AAPL')
     
-    @patch('core.views.StockPredictor')
-    def test_predict_predictor_exception(self, mock_predictor_class):
-        """Test predictor exception returns 500"""
+    def test_predict_task_invalid_user(self):
+        """Test Celery task with invalid user ID"""
+        result = run_stock_prediction(99999, 'AAPL')
+        
+        self.assertFalse(result['success'])
+        self.assertIn('error', result)
+        self.assertIn('does not exist', result['error'])
+    
+    @patch('core.tasks.StockPredictor')
+    def test_predict_task_predictor_exception(self, mock_predictor_class):
+        """Test Celery task when predictor raises exception"""
         mock_predictor_class.side_effect = Exception('Prediction failed')
         
-        url = reverse('predict')
-        response = self.client.post(url, {'ticker': 'INVALID'})
+        result = run_stock_prediction(self.user.id, 'INVALID')
         
-        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-        self.assertEqual(response.data['error'], 'Prediction failed')
+        self.assertFalse(result['success'])
+        self.assertIn('error', result)
+        self.assertEqual(result['error'], 'Prediction failed')
 
 
 class PredictionListViewTest(APITestCase):
@@ -203,3 +232,121 @@ class PredictionListViewTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+
+class CeleryTaskTest(APITestCase):
+    """Test cases for Celery tasks"""
+    
+    def setUp(self):
+        """Set up test user"""
+        self.user = User.objects.create_user(
+            username='taskuser',
+            email='task@example.com',
+            password='testpass123'
+        )
+    
+    @patch('core.tasks.StockPredictor')
+    def test_run_stock_prediction_success(self, mock_predictor_class):
+        """Test successful execution of run_stock_prediction task"""
+        # Mock the predictor
+        mock_predictor = MagicMock()
+        mock_predictor.run.return_value = {
+            'ticker': 'AAPL',
+            'next_day_price': 150.25,
+            'mse': 2.5,
+            'rmse': 1.58,
+            'r2': 0.85,
+            'plot_urls': ['plot1.png', 'plot2.png']
+        }
+        mock_predictor_class.return_value = mock_predictor
+        
+        # Execute the task
+        result = run_stock_prediction(self.user.id, 'AAPL')
+        
+        # Verify result
+        self.assertTrue(result['success'])
+        self.assertEqual(result['ticker'], 'AAPL')
+        self.assertEqual(result['next_day_price'], 150.25)
+        self.assertIn('prediction_id', result)
+        
+        # Verify prediction was saved to database
+        prediction = Prediction.objects.get(id=result['prediction_id'])
+        self.assertEqual(prediction.user, self.user)
+        self.assertEqual(prediction.ticker, 'AAPL')
+        self.assertEqual(prediction.metrics['next_day_price'], 150.25)
+        self.assertEqual(prediction.plot_urls, ['plot1.png', 'plot2.png'])
+    
+    def test_run_stock_prediction_invalid_user(self):
+        """Test task with non-existent user ID"""
+        result = run_stock_prediction(99999, 'AAPL')
+        
+        self.assertFalse(result['success'])
+        self.assertIn('User with id 99999 does not exist', result['error'])
+    
+    @patch('core.tasks.StockPredictor')
+    def test_run_stock_prediction_predictor_error(self, mock_predictor_class):
+        """Test task when StockPredictor raises an exception"""
+        mock_predictor_class.side_effect = ValueError('Invalid ticker symbol')
+        
+        result = run_stock_prediction(self.user.id, 'INVALID')
+        
+        self.assertFalse(result['success'])
+        self.assertEqual(result['error'], 'Invalid ticker symbol')
+        
+        # Verify no prediction was created
+        self.assertEqual(Prediction.objects.count(), 0)
+
+
+class AsyncPredictionIntegrationTest(APITestCase):
+    """Integration tests for async prediction workflow"""
+    
+    def setUp(self):
+        """Set up test client and user"""
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            username='integrationuser',
+            email='integration@example.com',
+            password='testpass123'
+        )
+        self.client.force_authenticate(user=self.user)
+    
+    @patch('core.tasks.run_stock_prediction.delay')
+    def test_full_async_workflow(self, mock_task_delay):
+        """Test the complete async prediction workflow"""
+        # Mock the task
+        mock_task = MagicMock()
+        mock_task.id = 'test-task-123'
+        mock_task_delay.return_value = mock_task
+        
+        # Step 1: Submit prediction request
+        url = reverse('predict')
+        response = self.client.post(url, {'ticker': 'TSLA'})
+        
+        # Verify immediate response
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.data['task_id'], 'test-task-123')
+        self.assertIn('Prediction started', response.data['message'])
+        
+        # Verify task was queued with correct parameters
+        mock_task_delay.assert_called_once_with(self.user.id, 'TSLA')
+    
+    @patch('core.tasks.run_stock_prediction.delay')
+    def test_multiple_concurrent_predictions(self, mock_task_delay):
+        """Test multiple concurrent prediction requests"""
+        mock_task_delay.return_value = MagicMock(id='task-id')
+        
+        url = reverse('predict')
+        
+        # Submit multiple predictions
+        tickers = ['AAPL', 'GOOGL', 'MSFT']
+        for ticker in tickers:
+            response = self.client.post(url, {'ticker': ticker})
+            self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        
+        # Verify all tasks were queued
+        self.assertEqual(mock_task_delay.call_count, 3)
+        
+        # Verify calls were made with correct parameters
+        expected_calls = [(self.user.id, ticker) for ticker in tickers]
+        actual_calls = [call[0] for call in mock_task_delay.call_args_list]
+        self.assertEqual(actual_calls, expected_calls)

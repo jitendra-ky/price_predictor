@@ -7,6 +7,7 @@ from rest_framework import status
 from .models import Prediction
 from .serializers import PredictionSerializer
 from .services.predictor import StockPredictor
+from .tasks import run_stock_prediction
 
 class HealthCheckView(View):
     def get(self, request, *args, **kwargs):
@@ -20,27 +21,15 @@ class PredictView(APIView):
         ticker = request.data.get("ticker")
         if not ticker:
             return Response({"error": "Ticker is required"}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            predictor = StockPredictor(ticker)
-            result = predictor.run()
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        # Save the prediction to the database
-        prediction = Prediction.objects.create(
-            user = request.user,
-            ticker = result['ticker'],
-            metrics = {
-                "next_day_price": result["next_day_price"],
-                "mse": result["mse"],
-                "rmse": result["rmse"],
-                "r2": result["r2"],
-            },
-            plot_urls = result["plot_urls"]
-        )
+        # Queue the prediction task
+        task = run_stock_prediction.delay(request.user.id, ticker)
         
-        serializer = PredictionSerializer(prediction)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({
+            "message": "Prediction started. Please check back soon.",
+            "task_id": task.id,
+            "ticker": ticker
+        }, status=status.HTTP_202_ACCEPTED)
 
 class PredictionListView(APIView):
     permission_classes = [IsAuthenticated]
