@@ -29,6 +29,7 @@ urlpatterns = [
     path('healthz/', HealthCheckView.as_view(), name='healthz'),
     path('test/', TemplateView.as_view(template_name='test.html'), name='test_template'),
     path('register/', TemplateView.as_view(template_name='register.html'), name='register'),
+    path('login/', TemplateView.as_view(template_name='login.html'), name='login'),
 ]
 
 if settings.DEBUG:
