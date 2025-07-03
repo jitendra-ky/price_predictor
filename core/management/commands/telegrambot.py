@@ -1,7 +1,6 @@
 """
 Django management command for running the Telegram bot
 """
-import asyncio
 import logging
 
 from django.core.management.base import BaseCommand

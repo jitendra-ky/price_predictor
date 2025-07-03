@@ -4,14 +4,15 @@ Telegram Bot implementation for Stock Price Prediction service
 import logging
 import random
 import string
-from typing import Dict, Any
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from asgiref.sync import sync_to_async
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from core.models import TelegramProfile
+from core.tasks import run_stock_prediction_telegram
 
 # Configure logging
 logging.basicConfig(
@@ -124,11 +125,62 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(help_text)
 
 
+async def predict_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handler for the /predict command.
+    Format: /predict <ticker>
+    
+    This handler validates the ticker argument and queues a Celery task
+    to run the prediction asynchronously.
+    """
+    # Get the chat_id from the update
+    chat_id = update.effective_chat.id
+    
+    # Check if ticker was provided
+    if not context.args or len(context.args) < 1:
+        await update.message.reply_text(
+            "Please provide a ticker symbol. Example: /predict TSLA"
+        )
+        return
+    
+    # Get the ticker symbol from arguments
+    ticker = context.args[0].upper()
+    
+    logger.info(f"Prediction requested for ticker {ticker} by chat_id {chat_id}")
+    
+    try:
+        # Get the user from the TelegramProfile
+        logger.info(f"Fetching TelegramProfile for chat_id {chat_id}")
+        telegram_profile = await sync_to_async(lambda: TelegramProfile.objects.select_related("user").get(chat_id=str(chat_id)))()
+        user = telegram_profile.user
+        logger.info(f"Found user {user.username} for chat_id {chat_id}")
+        # Send immediate response
+        await update.message.reply_text(f"Prediction started for {ticker}...")
+        
+        logger.info(f"Queuing prediction task for user {user.username} with ticker {ticker}")
+        # Queue the Celery task
+        await sync_to_async(run_stock_prediction_telegram.delay)(
+            user.id, 
+            ticker, 
+            chat_id
+        )
+        logger.info(f"Prediction task queued for user {user.username} with ticker {ticker}")
+        
+    except TelegramProfile.DoesNotExist:
+        await update.message.reply_text(
+            "Your Telegram profile isn't linked yet. Please use /start to register."
+        )
+    except Exception as e:
+        logger.error(f"Error queuing prediction task: {e}")
+        await update.message.reply_text(
+            f"Sorry, an error occurred: {str(e)}"
+        )
+
+
 def create_application() -> Application:
     """
     Create and configure the Telegram bot application.
     """
-    from django.conf import settings
     
     if not settings.TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN not set in environment variables")
@@ -140,6 +192,7 @@ def create_application() -> Application:
     # Add command handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("predict", predict_command))
     
     # Add error handler
     application.add_error_handler(error_handler)

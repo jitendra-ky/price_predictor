@@ -151,7 +151,11 @@ MEDIA_URL = '/media/'
 
 MODEL_PATH = os.getenv('MODEL_PATH', "stock_prediction_model.keras")
 
+# Telegram bot configuration
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+
+# Base URL for full URLs (used in Telegram messages)
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
 
 # Celery Configuration
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
