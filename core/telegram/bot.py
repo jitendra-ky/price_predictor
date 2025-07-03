@@ -4,6 +4,7 @@ Telegram Bot implementation for Stock Price Prediction service
 import logging
 import random
 import string
+import os
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -32,6 +33,14 @@ def check_user_exists(username):
 @sync_to_async
 def get_first_user():
     return User.objects.first()
+
+
+@sync_to_async
+def get_latest_prediction(user):
+    """
+    Get the latest prediction for a user, ordered by creation date descending.
+    """
+    return user.predictions.order_by('-created').first()
 
 
 @sync_to_async
@@ -118,7 +127,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "Available commands:\n\n"
         "/start - Start the bot and register your chat\n"
         "/predict <ticker> - Get price prediction for a stock ticker\n"
-        "/latest - Get your latest predictions\n"
+        "/latest - Get your latest prediction\n"
         "/help - Show this help message"
     )
     
@@ -177,6 +186,91 @@ async def predict_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
 
 
+async def latest_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handler for the /latest command.
+    Retrieves and displays the user's most recent prediction.
+    """
+    chat_id = update.effective_chat.id
+    
+    logger.info(f"Latest prediction requested by chat_id {chat_id}")
+    
+    try:
+        # Get the user from the TelegramProfile
+        telegram_profile = await sync_to_async(lambda: TelegramProfile.objects.select_related("user").get(chat_id=str(chat_id)))()
+        user = telegram_profile.user
+        
+        # Get the latest prediction for this user
+        latest_prediction = await get_latest_prediction(user)
+        
+        if not latest_prediction:
+            await update.message.reply_text("You have no predictions yet.")
+            return
+        
+        # Format the prediction message
+        ticker = latest_prediction.ticker
+        created_date = latest_prediction.created.strftime("%Y-%m-%d %H:%M UTC")
+        metrics = latest_prediction.metrics
+        plot_urls = latest_prediction.plot_urls
+        
+        next_day_price = metrics.get('next_day_price', 'N/A')
+        mse = metrics.get('mse', 'N/A')
+        rmse = metrics.get('rmse', 'N/A')
+        r2 = metrics.get('r2', 'N/A')
+        
+        message = (
+            f"📊 *Latest Prediction: {ticker}*\n\n"
+            f"*Created:* {created_date}\n"
+            f"*Next Day Price:* ${next_day_price}\n\n"
+            f"*Metrics:*\n"
+            f"- MSE: {mse}\n"
+            f"- RMSE: {rmse}\n"
+            f"- R²: {r2}\n"
+        )
+        
+        # Send the text message
+        await update.message.reply_text(message, parse_mode="Markdown")
+        
+        # Send the plot images if they exist
+        if plot_urls:
+            base_url = getattr(settings, 'BASE_URL', '')
+            
+            for plot_url in plot_urls:
+                try:
+                    # Try to send the image directly from the file path
+                    image_path = os.path.join(settings.MEDIA_ROOT, plot_url.lstrip('/media/'))
+                    
+                    if os.path.exists(image_path):
+                        with open(image_path, 'rb') as photo_file:
+                            await context.bot.send_photo(
+                                chat_id=chat_id,
+                                photo=photo_file,
+                                caption=f"{ticker} - {os.path.basename(plot_url)}"
+                            )
+                    else:
+                        # If the file doesn't exist locally, send the URL
+                        full_url = f"{base_url}{plot_url}"
+                        await update.message.reply_text(f"Plot available at: {full_url}")
+                        
+                except Exception as e:
+                    logger.error(f"Error sending plot image for latest prediction: {e}")
+                    # Send URL as fallback
+                    full_url = f"{base_url}{plot_url}"
+                    await update.message.reply_text(f"Plot available at: {full_url}")
+        
+        logger.info(f"Sent latest prediction for user {user.username} to chat_id {chat_id}")
+        
+    except TelegramProfile.DoesNotExist:
+        await update.message.reply_text(
+            "Your Telegram profile isn't linked yet. Please use /start to register."
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving latest prediction: {e}")
+        await update.message.reply_text(
+            f"Sorry, an error occurred while retrieving your latest prediction: {str(e)}"
+        )
+
+
 def create_application() -> Application:
     """
     Create and configure the Telegram bot application.
@@ -193,6 +287,7 @@ def create_application() -> Application:
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("predict", predict_command))
+    application.add_handler(CommandHandler("latest", latest_command))
     
     # Add error handler
     application.add_error_handler(error_handler)
