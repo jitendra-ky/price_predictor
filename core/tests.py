@@ -11,6 +11,7 @@ import json
 
 from .views import HealthCheckView
 from .models import Prediction
+from .tasks import run_stock_prediction
 
 User = get_user_model()
 
@@ -203,3 +204,66 @@ class PredictionListViewTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+
+class CeleryTaskTest(APITestCase):
+    """Test cases for Celery tasks"""
+    
+    def setUp(self):
+        """Set up test user"""
+        self.user = User.objects.create_user(
+            username='taskuser',
+            email='task@example.com',
+            password='testpass123'
+        )
+    
+    @patch('core.tasks.StockPredictor')
+    def test_run_stock_prediction_success(self, mock_predictor_class):
+        """Test successful execution of run_stock_prediction task"""
+        # Mock the predictor
+        mock_predictor = MagicMock()
+        mock_predictor.run.return_value = {
+            'ticker': 'AAPL',
+            'next_day_price': 150.25,
+            'mse': 2.5,
+            'rmse': 1.58,
+            'r2': 0.85,
+            'plot_urls': ['plot1.png', 'plot2.png']
+        }
+        mock_predictor_class.return_value = mock_predictor
+        
+        # Execute the task
+        result = run_stock_prediction(self.user.id, 'AAPL')
+        
+        # Verify result
+        self.assertTrue(result['success'])
+        self.assertEqual(result['ticker'], 'AAPL')
+        self.assertEqual(result['next_day_price'], 150.25)
+        self.assertIn('prediction_id', result)
+        
+        # Verify prediction was saved to database
+        prediction = Prediction.objects.get(id=result['prediction_id'])
+        self.assertEqual(prediction.user, self.user)
+        self.assertEqual(prediction.ticker, 'AAPL')
+        self.assertEqual(prediction.metrics['next_day_price'], 150.25)
+        self.assertEqual(prediction.plot_urls, ['plot1.png', 'plot2.png'])
+    
+    def test_run_stock_prediction_invalid_user(self):
+        """Test task with non-existent user ID"""
+        result = run_stock_prediction(99999, 'AAPL')
+        
+        self.assertFalse(result['success'])
+        self.assertIn('User with id 99999 does not exist', result['error'])
+    
+    @patch('core.tasks.StockPredictor')
+    def test_run_stock_prediction_predictor_error(self, mock_predictor_class):
+        """Test task when StockPredictor raises an exception"""
+        mock_predictor_class.side_effect = ValueError('Invalid ticker symbol')
+        
+        result = run_stock_prediction(self.user.id, 'INVALID')
+        
+        self.assertFalse(result['success'])
+        self.assertEqual(result['error'], 'Invalid ticker symbol')
+        
+        # Verify no prediction was created
+        self.assertEqual(Prediction.objects.count(), 0)
