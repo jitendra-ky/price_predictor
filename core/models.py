@@ -13,3 +13,11 @@ class Prediction(models.Model):
     def __str__(self):
         return f"{self.ticker} {self.created}"
     
+class TelegramProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="telegram_profile")
+    chat_id = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Telegram Profile: {self.user.username}"

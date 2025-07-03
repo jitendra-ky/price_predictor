@@ -8,3 +8,5 @@ tensorflow==2.19.0
 matplotlib==3.10.3
 ipython==9.4.0 # dev
 psycopg2-binary==2.9.10
+python-telegram-bot==22.1
+python-dotenv==1.1.0
