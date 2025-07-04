@@ -83,12 +83,47 @@ WSGI_APPLICATION = 'zproject.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+ISPRODUCTION = os.getenv("ISPRODUCTION", "False") == "True"
+
+if ISPRODUCTION:
+    # For production, use the Azure SQL Server configuration
+    dbinfo = {pair.split(":")[0]: pair.split(":")[1] for pair in os.getenv("MSSQL_SERVER").split(" ")}
+    DATABASES = {
+        'default': {
+            'ENGINE': 'mssql',
+            'NAME': dbinfo['database'],
+            'USER': dbinfo['user'],
+            'PASSWORD': dbinfo['password'],
+            'HOST': dbinfo['host'],
+            'PORT': dbinfo['port'],  # Default port is 1433 for SQL Server
+            'OPTIONS': {
+                'driver': 'ODBC Driver 18 for SQL Server',  # Adjust to your ODBC driver version
+                'extra_params': 'Encrypt=yes;TrustServerCertificate=no;',
+            },
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
+
+# if want to use mySQL
+# pip install mysqlclient==2.2.4
+# dbinfo = {pair.split(":")[0]: pair.split(":")[1] for pair in os.getenv("MYSQL_SERVER").split(" ")}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': dbinfo['database'],
+#         'USER': dbinfo['user'],
+#         'PASSWORD': dbinfo['password'],
+#         'HOST': dbinfo['host'],
+#         'PORT': dbinfo['port'],
+#     }
+# }
 
 
 # Password validation
