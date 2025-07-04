@@ -16,3 +16,4 @@ whitenoise==6.6.0
 django-mssql-backend==2.8.1
 mysqlclient==2.2.4 #dev
 mssql-django==1.5
+gunicorn==23.0.0 # production
