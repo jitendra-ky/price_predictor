@@ -15,7 +15,15 @@ import os
 from datetime import timedelta
 from dotenv import load_dotenv
 
-load_dotenv()
+ISPRODUCTION = os.getenv("ISPRODUCTION", "False") == "True"
+
+# Load .env file if it exists (for local development)
+if ISPRODUCTION:
+    # In production, environment variables should be set by the deployment platform
+    load_dotenv(override=False)  # Don't override existing environment variables
+else:
+    # Load .env file for local development
+    load_dotenv(override=True)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -101,7 +109,6 @@ WSGI_APPLICATION = 'zproject.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-ISPRODUCTION = os.getenv("ISPRODUCTION", "False") == "True"
 
 if ISPRODUCTION:
     # For production, use the Azure SQL Server configuration
