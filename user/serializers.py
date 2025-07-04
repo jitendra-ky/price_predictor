@@ -7,6 +7,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ('username', 'email', 'password')
         extra_kwargs = {'password': {'write_only': True}}
     
+    def validate_username(self, value):
+        """
+        Check that the username doesn't start with tg_ prefix (reserved for Telegram)
+        """
+        if value.startswith('tg_'):
+            raise serializers.ValidationError(
+                "Username cannot start with 'tg_' as this prefix is reserved for system use."
+            )
+        return value
+    
     def create(self, validated_data):
         '''customize the create method as default on use wrong hash to set password'''
         password = validated_data.pop('password', None)
