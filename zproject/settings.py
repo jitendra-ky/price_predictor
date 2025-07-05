@@ -15,7 +15,15 @@ import os
 from datetime import timedelta
 from dotenv import load_dotenv
 
-load_dotenv()
+ISPRODUCTION = os.getenv("ISPRODUCTION", "False") == "True"
+
+# Load .env file if it exists (for local development)
+if ISPRODUCTION:
+    # In production, environment variables should be set by the deployment platform
+    load_dotenv(override=False)  # Don't override existing environment variables
+else:
+    # Load .env file for local development
+    load_dotenv(override=True)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,12 +33,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-1jf5qw=s5p=wh&q^*vu83sm1_s0fzvlxbkgi%^=h74qm&s(j#p'
+SECRET_KEY = os.getenv("SECRET_KEY", 'django-insecure-1jf5qw=s5p=wh&q^*vu83sm1_s0fzvlxbkgi%^=h74qm&s(j#p')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = []
+WEBSITE_HOSTNAME = os.getenv("WEBSITE_HOSTNAME", "")
+
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+if WEBSITE_HOSTNAME:
+    ALLOWED_HOSTS.append(WEBSITE_HOSTNAME)
+if DEBUG:
+    ALLOWED_HOSTS.append('*')  # Allow all hosts in debug mode
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+
+if WEBSITE_HOSTNAME:
+    CSRF_TRUSTED_ORIGINS += [
+        f'https://{WEBSITE_HOSTNAME}',
+        f'http://{WEBSITE_HOSTNAME}',
+    ]
+
 
 
 # Application definition
@@ -50,6 +76,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -81,12 +109,46 @@ WSGI_APPLICATION = 'zproject.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+
+if ISPRODUCTION:
+    # For production, use the Azure SQL Server configuration
+    dbinfo = {pair.split(":")[0]: pair.split(":")[1] for pair in os.getenv("MSSQL_SERVER").split(" ")}
+    DATABASES = {
+        'default': {
+            'ENGINE': 'mssql',
+            'NAME': dbinfo['database'],
+            'USER': dbinfo['user'],
+            'PASSWORD': dbinfo['password'],
+            'HOST': dbinfo['host'],
+            'PORT': dbinfo['port'],  # Default port is 1433 for SQL Server
+            'OPTIONS': {
+                'driver': 'ODBC Driver 18 for SQL Server',  # Adjust to your ODBC driver version
+                'extra_params': 'Encrypt=yes;TrustServerCertificate=no;',
+            },
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
+
+# if want to use mySQL
+# pip install mysqlclient==2.2.4
+# dbinfo = {pair.split(":")[0]: pair.split(":")[1] for pair in os.getenv("MYSQL_SERVER").split(" ")}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': dbinfo['database'],
+#         'USER': dbinfo['user'],
+#         'PASSWORD': dbinfo['password'],
+#         'HOST': dbinfo['host'],
+#         'PORT': dbinfo['port'],
+#     }
+# }
 
 
 # Password validation
@@ -136,6 +198,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'mystaticfiles')
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
@@ -157,6 +220,9 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
 # Base URL for full URLs (used in Telegram messages)
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
 
+# Rate limiting configuration
+PREDICT_PER_MIN = int(os.getenv('PREDICT_PER_MIN', '5'))
+
 # Celery Configuration
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
@@ -164,3 +230,11 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+
+# Cache for rate limiting
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://localhost:6379/1',
+    }
+}
