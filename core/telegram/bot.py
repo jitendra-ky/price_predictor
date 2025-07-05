@@ -11,9 +11,11 @@ from django.contrib.auth import get_user_model
 from asgiref.sync import sync_to_async
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+import pytz
 
 from core.models import TelegramProfile
 from core.tasks import run_stock_prediction_telegram
+from core.utils import check_rate_limit
 
 # Configure logging
 logging.basicConfig(
@@ -145,6 +147,18 @@ async def predict_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Get the chat_id from the update
     chat_id = update.effective_chat.id
     
+    # Check rate limit
+    is_allowed, remaining, reset_time = check_rate_limit(f"telegram:{chat_id}", window_minutes=1)
+    
+    if not is_allowed:
+        ist_tz = pytz.timezone('Asia/Kolkata')
+        reset_time_ist = reset_time.astimezone(ist_tz) if reset_time else None
+        await update.message.reply_text(
+            f"Rate limit exceeded. You can only make {settings.PREDICT_PER_MIN} predictions per minute. "
+            f"Please try again at {reset_time_ist.strftime('%H:%M:%S IST') if reset_time_ist else 'later'}."
+        )
+        return
+    
     # Check if ticker was provided
     if not context.args or len(context.args) < 1:
         await update.message.reply_text(
@@ -164,7 +178,7 @@ async def predict_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         user = telegram_profile.user
         logger.info(f"Found user {user.username} for chat_id {chat_id}")
         # Send immediate response
-        await update.message.reply_text(f"Prediction started for {ticker}...")
+        await update.message.reply_text(f"Prediction started for {ticker}... ({remaining} predictions remaining this minute)")
         
         logger.info(f"Queuing prediction task for user {user.username} with ticker {ticker}")
         # Queue the Celery task
