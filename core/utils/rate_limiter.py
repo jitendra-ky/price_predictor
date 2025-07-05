@@ -1,5 +1,4 @@
 from django.core.cache import cache
-from django.conf import settings
 import time
 
 def is_rate_limited(user_id, action, limit=5, window=3600):

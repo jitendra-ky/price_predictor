@@ -28,6 +28,7 @@ A comprehensive Django-based stock price prediction application with machine lea
 - 🔄 **Async Processing**: Celery task queue for handling predictions
 - 🐳 **Docker Support**: Containerized deployment with Docker Compose
 - 📊 **Visualization**: Interactive charts and graphs for predictions
+- 🧪 **automated testing**: automated test using github actions.
 
 ## 🛠️ Tech Stack
 
