@@ -1,6 +1,20 @@
 # 📈 Stock Price Predictor
 
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Django](https://img.shields.io/badge/django-5.0.6-green.svg)](https://www.djangoproject.com/)
+[![TensorFlow](https://img.shields.io/badge/tensorflow-2.19.0-orange.svg)](https://www.tensorflow.org/)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
+[![Redis](https://img.shields.io/badge/redis-required-red.svg)](https://redis.io/)
+[![API](https://img.shields.io/badge/API-REST-brightgreen.svg)](https://www.django-rest-framework.org/)
+[![Celery](https://img.shields.io/badge/celery-async-yellow.svg)](https://celeryproject.org/)
+[![Telegram](https://img.shields.io/badge/telegram-bot-blue.svg)](https://core.telegram.org/bots)
+[![Status](https://img.shields.io/badge/status-active-brightgreen.svg)]()
+
 A comprehensive Django-based stock price prediction application with machine learning capabilities, REST API, web dashboard, and Telegram bot integration.
+
+
+- 📊 Dashboard: https://predict.jitendraky.tech/dashboard
+- 🤖 Telegram Bot: https://t.me/unintern89bot
 
 ## ✨ Features
 
