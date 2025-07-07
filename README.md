@@ -12,7 +12,7 @@
 
 A comprehensive Django-based stock price prediction application with machine learning capabilities, REST API, web dashboard, and Telegram bot integration.
 
-
+deployment status ![Deployment Health](https://img.shields.io/website?url=https%3A%2F%2Fprice-predictor-app2.azurewebsites.net%2Fhealthz%2F)
 - 📊 Dashboard: https://predict.jitendraky.tech/dashboard
 - 🤖 Telegram Bot: https://t.me/unintern89bot
 
