@@ -22,6 +22,52 @@
 </div>
 
 <div class="container mx-auto px-4 py-8 space-y-8">
+    <!-- Quota Status Banner -->
+    {% if not user_is_pro %}
+    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4" id="quota-banner">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-blue-800">
+                        Free Plan - <span id="quota-remaining">{{ user_quota_remaining }}</span> of {{ user_quota_limit }} predictions remaining today
+                    </h3>
+                    <p class="text-xs text-blue-600 mt-1">
+                        Quota resets daily at midnight UTC
+                    </p>
+                </div>
+            </div>
+            <div class="flex-shrink-0">
+                <button onclick="upgradeModal.showModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
+                    Upgrade to Pro
+                </button>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+        <div class="flex items-center">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-green-800">
+                    💎 Pro Subscriber - Unlimited predictions
+                </h3>
+                <p class="text-xs text-green-600 mt-1">
+                    Enjoy unlimited predictions and priority processing
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Success/Error Messages -->
     <div id="message-container" class="hidden">
         <!-- Success Message -->
@@ -189,6 +235,65 @@
         </div>
     </div>
 </div>
+
+<!-- Upgrade Modal -->
+{% if not user_is_pro %}
+<dialog id="upgradeModal" class="modal rounded-lg shadow-xl max-w-md mx-auto">
+    <div class="bg-white p-6 rounded-lg">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">💎 Upgrade to Pro</h3>
+            <button onclick="upgradeModal.close()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="mb-6">
+            <div class="text-center mb-4">
+                <div class="text-3xl font-bold text-blue-600">₹199</div>
+                <div class="text-sm text-gray-500">per month</div>
+            </div>
+            
+            <div class="space-y-3">
+                <div class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span>🚀 Unlimited predictions per day</span>
+                </div>
+                <div class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span>⚡ Priority processing queue</span>
+                </div>
+                <div class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span>🤖 Unlimited Telegram bot access</span>
+                </div>
+                <div class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span>📊 Advanced statistics and insights</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex space-x-3">
+            <button onclick="upgradeModal.close()" class="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition duration-150">
+                Cancel
+            </button>
+            <button onclick="initiateSubscription()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-150">
+                Subscribe Now
+            </button>
+        </div>
+    </div>
+</dialog>
+{% endif %}
 
 {% load static %}
 <script src="{% static 'js/dashboard.js' %}"></script>

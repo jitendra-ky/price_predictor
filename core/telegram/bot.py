@@ -124,14 +124,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Shows available bot commands.
     """
     help_text = (
-        "Available commands:\n\n"
-        "/start - Start the bot and register your chat\n"
+        "🤖 *Stock Prediction Bot Commands*\n\n"
+        "/start - Register and get started\n"
+        "/help - Show this help message\n"
         "/predict <ticker> - Get price prediction for a stock ticker\n"
         "/latest - Get your latest prediction\n"
-        "/help - Show this help message"
+        "/subscribe - Upgrade to Pro (unlimited predictions)\n"
+        "/stats - View your statistics (Pro only)\n\n"
+        "Example: /predict TSLA"
     )
     
-    await update.message.reply_text(help_text)
+    await update.message.reply_text(help_text, parse_mode="Markdown")
 
 
 async def predict_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -163,6 +166,32 @@ async def predict_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         telegram_profile = await sync_to_async(lambda: TelegramProfile.objects.select_related("user").get(chat_id=str(chat_id)))()
         user = telegram_profile.user
         logger.info(f"Found user {user.username} for chat_id {chat_id}")
+        
+        # Check quota before processing
+        profile = await sync_to_async(lambda: getattr(user, 'userprofile', None))()
+        if profile and not await sync_to_async(profile.can_make_prediction)():
+            remaining = await sync_to_async(profile.get_remaining_predictions)()
+            base_url = getattr(settings, 'BASE_URL', 'http://localhost:8000')
+            
+            await update.message.reply_text(
+                f"🚫 *Daily limit reached!*\n\n"
+                f"You've used all 5 free predictions today.\n"
+                f"Remaining: {remaining}\n\n"
+                f"💎 Upgrade to Pro for unlimited predictions!\n"
+                f"🔗 [Subscribe here]({base_url}/api/v1/subscribe)\n\n"
+                f"Pro features:\n"
+                f"• Unlimited /predict calls\n"
+                f"• /stats command access\n"
+                f"• Priority processing",
+                parse_mode="Markdown",
+                disable_web_page_preview=True
+            )
+            return
+        
+        # Increment usage count if profile exists
+        if profile:
+            await sync_to_async(profile.increment_prediction_count)()
+        
         # Send immediate response
         await update.message.reply_text(f"Prediction started for {ticker}...")
         
@@ -271,6 +300,120 @@ async def latest_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
 
 
+async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handler for the /subscribe command.
+    Provides a link to upgrade to Pro subscription.
+    """
+    chat_id = update.effective_chat.id
+    
+    try:
+        # Get the user from the TelegramProfile
+        telegram_profile = await sync_to_async(lambda: TelegramProfile.objects.select_related("user").get(chat_id=str(chat_id)))()
+        user = telegram_profile.user
+        
+        # Check if user is already Pro
+        profile = await sync_to_async(lambda: getattr(user, 'userprofile', None))()
+        if profile and profile.is_pro:
+            await update.message.reply_text(
+                "🎉 You're already a Pro subscriber!\n\n"
+                "Enjoy unlimited predictions and priority support."
+            )
+            return
+        
+        base_url = getattr(settings, 'BASE_URL', 'http://localhost:8000')
+        
+        await update.message.reply_text(
+            "💎 *Upgrade to Pro!*\n\n"
+            "Get unlimited predictions for just ₹199/month\n\n"
+            "*Pro Features:*\n"
+            "• 🚀 Unlimited /predict calls per day\n"
+            "• 📊 Access to /stats command\n"
+            "• ⚡ Priority processing queue\n"
+            "• 🎯 Advanced prediction metrics\n\n"
+            f"🔗 [Subscribe Now]({base_url}/api/v1/subscribe)\n\n"
+            "Secure payment powered by Stripe 🔒",
+            parse_mode="Markdown",
+            disable_web_page_preview=True
+        )
+        
+    except TelegramProfile.DoesNotExist:
+        await update.message.reply_text(
+            "Your Telegram profile isn't linked yet. Please use /start to register."
+        )
+    except Exception as e:
+        logger.error(f"Error in subscribe command: {e}")
+        await update.message.reply_text(
+            f"Sorry, an error occurred: {str(e)}"
+        )
+
+
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handler for the /stats command.
+    Available only to Pro users.
+    """
+    chat_id = update.effective_chat.id
+    
+    try:
+        # Get the user from the TelegramProfile
+        telegram_profile = await sync_to_async(lambda: TelegramProfile.objects.select_related("user").get(chat_id=str(chat_id)))()
+        user = telegram_profile.user
+        
+        # Check if user is Pro
+        profile = await sync_to_async(lambda: getattr(user, 'userprofile', None))()
+        if not profile or not profile.is_pro:
+            base_url = getattr(settings, 'BASE_URL', 'http://localhost:8000')
+            await update.message.reply_text(
+                "🔒 *Pro Feature Only*\n\n"
+                "The /stats command is available only to Pro subscribers.\n\n"
+                f"💎 [Upgrade to Pro]({base_url}/api/v1/subscribe) for ₹199/month\n\n"
+                "Pro features include:\n"
+                "• 📊 Detailed usage statistics\n"
+                "• 🚀 Unlimited predictions\n"
+                "• ⚡ Priority processing",
+                parse_mode="Markdown",
+                disable_web_page_preview=True
+            )
+            return
+        
+        # Get user statistics
+        total_predictions = await sync_to_async(lambda: user.predictions.count())()
+        today_predictions = await sync_to_async(lambda: profile.daily_predictions_count if profile.last_prediction_date == profile.last_prediction_date else 0)()
+        
+        # Get subscription info
+        subscription = await sync_to_async(lambda: user.subscriptions.filter(status__in=['active', 'trialing']).first())()
+        
+        message = (
+            f"📊 *Your Pro Statistics*\n\n"
+            f"👤 *User:* {user.username}\n"
+            f"💎 *Status:* Pro Subscriber\n\n"
+            f"📈 *Predictions:*\n"
+            f"• Today: {today_predictions}\n"
+            f"• Total: {total_predictions}\n"
+            f"• Daily Limit: Unlimited ∞\n\n"
+        )
+        
+        if subscription:
+            message += (
+                f"💳 *Subscription:*\n"
+                f"• Status: {subscription.status.title()}\n"
+                f"• Period: {subscription.current_period_start.strftime('%Y-%m-%d')} to {subscription.current_period_end.strftime('%Y-%m-%d')}\n"
+            )
+        
+        await update.message.reply_text(message, parse_mode="Markdown")
+        
+    except TelegramProfile.DoesNotExist:
+        await update.message.reply_text(
+            "Your Telegram profile isn't linked yet. Please use /start to register."
+        )
+    except Exception as e:
+        logger.error(f"Error in stats command: {e}")
+        await update.message.reply_text(
+            f"Sorry, an error occurred: {str(e)}"
+        )
+
+
 def create_application() -> Application:
     """
     Create and configure the Telegram bot application.
@@ -288,6 +431,10 @@ def create_application() -> Application:
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("predict", predict_command))
     application.add_handler(CommandHandler("latest", latest_command))
+    application.add_handler(CommandHandler("subscribe", subscribe_command))
+    application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("subscribe", subscribe_command))
+    application.add_handler(CommandHandler("stats", stats_command))
     
     # Add error handler
     application.add_error_handler(error_handler)

@@ -320,6 +320,11 @@ $(document).ready(function() {
                 updateResults(data);
                 showSuccess(`Prediction completed successfully for ${ticker}!`);
                 
+                // Update quota display if quota info is provided
+                if (data.quota) {
+                    updateQuotaDisplay(data.quota);
+                }
+                
                 // Refresh prediction history table
                 loadPredictionHistory();
             },
@@ -366,6 +371,9 @@ $(document).ready(function() {
     // Load prediction history on page load
     loadPredictionHistory();
     
+    // Load user status and update quota display
+    loadUserStatus();
+    
     // Clear messages when user starts typing
     $tickerInput.on('input', function() {
         hideMessages();
@@ -377,4 +385,103 @@ $(document).ready(function() {
         this.value = this.value.toUpperCase();
         this.setSelectionRange(cursorPos, cursorPos);
     });
+    
+    // Load user status and quota information
+    function loadUserStatus() {
+        const accessToken = localStorage.getItem('accessToken');
+        if (!accessToken) return;
+        
+        $.ajax({
+            url: '/api/v1/user/status/',
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            success: function(data) {
+                // Update quota display
+                if (data.quota && !data.user.is_pro) {
+                    $('#quota-remaining').text(data.quota.remaining);
+                    
+                    // Show quota warning if low
+                    if (data.quota.remaining <= 1) {
+                        const $quotaBanner = $('#quota-banner');
+                        $quotaBanner.removeClass('from-blue-50 to-indigo-50 border-blue-200');
+                        $quotaBanner.addClass('from-orange-50 to-red-50 border-orange-200');
+                        $quotaBanner.find('.text-blue-800').removeClass('text-blue-800').addClass('text-orange-800');
+                        $quotaBanner.find('.text-blue-600').removeClass('text-blue-600').addClass('text-orange-600');
+                    }
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading user status:', error);
+            }
+        });
+    }
+    
+    // Update quota after successful prediction
+    function updateQuotaDisplay(quotaInfo) {
+        if (quotaInfo && !quotaInfo.is_pro) {
+            $('#quota-remaining').text(quotaInfo.remaining);
+            
+            if (quotaInfo.remaining === 0) {
+                // Show upgrade modal if quota exhausted
+                showQuotaExhaustedModal();
+            }
+        }
+    }
+    
+    // Show quota exhausted modal
+    function showQuotaExhaustedModal() {
+        const modal = document.getElementById('upgradeModal');
+        if (modal) {
+            modal.showModal();
+        }
+    }
 });
+
+// Global function for subscription (accessible from onclick)
+function initiateSubscription() {
+    const accessToken = localStorage.getItem('accessToken');
+    if (!accessToken) {
+        window.location.href = '/login/';
+        return;
+    }
+    
+    // Show loading state
+    const button = event.target;
+    const originalText = button.textContent;
+    button.textContent = 'Creating checkout...';
+    button.disabled = true;
+    
+    $.ajax({
+        url: '/api/v1/subscribe/',
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        success: function(data) {
+            if (data.checkout_url) {
+                // Redirect to Stripe checkout
+                window.location.href = data.checkout_url;
+            } else {
+                alert('Failed to create checkout session. Please try again.');
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error creating checkout session:', error);
+            
+            let errorMessage = 'Failed to create checkout session. Please try again.';
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMessage = xhr.responseJSON.error;
+            }
+            
+            alert(errorMessage);
+            button.textContent = originalText;
+            button.disabled = false;
+        }
+    });
+}
