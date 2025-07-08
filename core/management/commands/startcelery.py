@@ -30,7 +30,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        cmd = ['celery', '-A', 'zproject', 'worker']
+        cmd = [sys.executable, '-m', 'celery', '-A', 'zproject', 'worker']
         
         if options['loglevel']:
             cmd.extend(['--loglevel', options['loglevel']])

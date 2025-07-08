@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  price_predictor:
+    build: .
+    container_name: stock_prediction_main
+    ports:
+      - "8000:8000"
+      - "9001:9001"  # Supervisor web interface
+    volumes:
+      - ./media:/app/media
+      - ./mystaticfiles:/app/mystaticfiles
+      - ./db.sqlite3:/app/db.sqlite3
+    environment:
+      # Production environment variables
+      # These should be set by Azure App Service Configuration
+      - DEBUG=False
+      - ISPRODUCTION=True
+      # Redis URLs for internal container communication
+      - CELERY_BROKER_URL=redis://127.0.0.1:6379/0
+      - CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/0
+      # The following should be set in Azure App Service:
+      # - SECRET_KEY=<your-production-secret-key>
+      # - TELEGRAM_BOT_TOKEN=<your-telegram-bot-token>
+      # - WEBSITE_HOSTNAME=<your-azure-hostname>
+      # - BASE_URL=<your-azure-app-url>
+      # - MSSQL_SERVER=<your-azure-sql-connection-string>
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
